@@ -158,7 +158,7 @@ public class OcrProcessor
     /// </summary>
     private static void AppendContentStream(PdfDocument doc, PdfPage page, string content)
     {
-        var bytes = Encoding.GetEncoding(1252).GetBytes(content);
+        var bytes = Encoding.ASCII.GetBytes(content);
         var streamDict = new PdfDictionary(doc);
         streamDict.CreateStream(bytes);
         doc.Internals.AddObject(streamDict);
