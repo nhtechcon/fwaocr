@@ -35,6 +35,46 @@ public class OcrProcessorTests
     }
 
     /// <summary>
+    /// Guards against "error while parsing an opentype font" — the font binary
+    /// must be parseable by PdfSharpCore's internal OpenType reader.
+    /// </summary>
+    [Fact]
+    public void GlyphlessFont_CanBeLoadedAsXFont()
+    {
+        var font = new XFont(GlyphlessFontResolver.FontFamily, 12);
+        Assert.NotNull(font);
+    }
+
+    /// <summary>
+    /// Verifies multiple font sizes parse without error (some parsers
+    /// cache per-size state, so exercising several sizes is valuable).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    [InlineData(24)]
+    [InlineData(72)]
+    public void GlyphlessFont_CanBeLoadedAtVariousSizes(double size)
+    {
+        var font = new XFont(GlyphlessFontResolver.FontFamily, size);
+        Assert.NotNull(font);
+    }
+
+    /// <summary>
+    /// Ensures bold/italic style requests don't crash the resolver or parser.
+    /// </summary>
+    [Theory]
+    [InlineData(XFontStyle.Regular)]
+    [InlineData(XFontStyle.Bold)]
+    [InlineData(XFontStyle.Italic)]
+    [InlineData(XFontStyle.BoldItalic)]
+    public void GlyphlessFont_CanBeLoadedWithStyles(XFontStyle style)
+    {
+        var font = new XFont(GlyphlessFontResolver.FontFamily, 12, style);
+        Assert.NotNull(font);
+    }
+
+    /// <summary>
     /// Verifies that text drawn with the glyphless font via XGraphics
     /// is extractable by an independent PDF reader (PdfPig).
     /// </summary>
