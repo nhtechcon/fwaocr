@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="fwaocr logo" width="128" height="128">
+</p>
+
 # fwaocr - Free Windows Auto OCR
 
 Free Windows Auto OCR is a free and open source OCR (Optical Character Recognition) tool for Windows.

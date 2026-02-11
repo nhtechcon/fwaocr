@@ -99,13 +99,35 @@ public class TrayApplicationContext : ApplicationContext
 
     private static Icon CreateDefaultIcon()
     {
-        // Programmatic 16x16 icon: blue circle representing OCR
-        var bmp = new Bitmap(16, 16);
+        // 32x32 icon: blue document with vertical "OCR" — matches assets/logo.svg
+        var bmp = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var pen = new Pen(Color.DodgerBlue, 2);
-        g.DrawEllipse(pen, 2, 2, 12, 12);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+
+        // Document body
+        var docPath = new System.Drawing.Drawing2D.GraphicsPath();
+        docPath.AddPolygon(new Point[] {
+            new(4, 1), new(22, 1), new(28, 7), new(28, 30), new(4, 30)
+        });
+        g.FillPath(new SolidBrush(Color.DodgerBlue), docPath);
+
+        // Folded corner
+        var foldPath = new System.Drawing.Drawing2D.GraphicsPath();
+        foldPath.AddPolygon(new Point[] {
+            new(22, 1), new(28, 7), new(22, 7)
+        });
+        g.FillPath(new SolidBrush(Color.FromArgb(100, 21, 101, 192)), foldPath);
+
+        // Vertical "OCR" text
+        using var font = new Font("Arial", 6.5f, FontStyle.Bold);
+        using var brush = new SolidBrush(Color.White);
+        var sf = new StringFormat { Alignment = StringAlignment.Center };
+        g.DrawString("O", font, brush, 16, 6, sf);
+        g.DrawString("C", font, brush, 16, 13, sf);
+        g.DrawString("R", font, brush, 16, 20, sf);
+
         var hIcon = bmp.GetHicon();
         return Icon.FromHandle(hIcon);
     }
