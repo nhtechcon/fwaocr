@@ -15,10 +15,10 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <ApplicationIcon>..\assets\icon.ico</ApplicationIcon>
-    <InternalsVisibleTo>FreeWindowsAutoOCR.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FreeWindowsAutoOCR.Tests" />
     <EmbeddedResource Include="..\assets\icon.ico" LogicalName="icon.ico" />
   </ItemGroup>
 
