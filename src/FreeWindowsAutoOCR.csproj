@@ -20,6 +20,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FreeWindowsAutoOCR.Tests" />
     <EmbeddedResource Include="..\assets\icon.ico" LogicalName="icon.ico" />
+    <EmbeddedResource Include="..\assets\pdf.ttf" LogicalName="pdf.ttf" />
   </ItemGroup>
 
   <ItemGroup>

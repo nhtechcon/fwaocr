@@ -1,4 +1,6 @@
+using FreeWindowsAutoOCR.Fonts;
 using FreeWindowsAutoOCR.UI;
+using PdfSharpCore.Fonts;
 
 namespace FreeWindowsAutoOCR;
 
@@ -7,6 +9,9 @@ static class Program
     [STAThread]
     static void Main()
     {
+        // Register Tesseract's glyphless font for invisible OCR text layers
+        GlobalFontSettings.FontResolver = new GlyphlessFontResolver();
+
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 

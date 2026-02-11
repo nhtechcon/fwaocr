@@ -1,8 +1,8 @@
-using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
 using Docnet.Core;
 using Docnet.Core.Models;
+using FreeWindowsAutoOCR.Fonts;
+using PdfSharpCore.Drawing;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Pdf.IO;
 using Windows.Graphics.Imaging;
@@ -15,9 +15,6 @@ public class OcrProcessor
     // Max render dimensions — A4 at ~300 DPI. Pages are scaled to fit while keeping aspect ratio.
     private const int RenderMaxWidth = 2480;
     private const int RenderMaxHeight = 3508;
-
-    // Font resource key used in the PDF content stream
-    private const string OcrFontKey = "F_OCR";
 
     public async Task ProcessAsync(string pdfPath)
     {
@@ -41,7 +38,7 @@ public class OcrProcessor
             if (result.OcrResult == null || string.IsNullOrWhiteSpace(result.OcrResult.Text))
                 continue;
 
-            AddTextLayer(pdfDoc, pdfDoc.Pages[i], result.OcrResult, result.ImageWidth, result.ImageHeight);
+            AddTextLayer(pdfDoc.Pages[i], result.OcrResult, result.ImageWidth, result.ImageHeight);
         }
 
         pdfDoc.Save(pdfPath);
@@ -84,22 +81,19 @@ public class OcrProcessor
     }
 
     /// <summary>
-    /// Adds an invisible text layer using raw PDF content stream operators.
-    /// Uses text rendering mode 3 (invisible) — text is hidden but searchable/selectable.
+    /// Draws invisible text on the PDF page at OCR-detected word positions using
+    /// Tesseract's glyphless font (pdf.ttf). The font contains zero-area glyph outlines,
+    /// so text is never visible regardless of rendering mode — but remains searchable/selectable.
     /// </summary>
-    private static void AddTextLayer(
-        PdfDocument doc, PdfPage page, OcrResult ocrResult, int imageWidth, int imageHeight)
+    private static void AddTextLayer(PdfPage pdfPage, OcrResult ocrResult, int imageWidth, int imageHeight)
     {
-        RegisterFont(doc, page);
+        using var gfx = XGraphics.FromPdfPage(pdfPage, XGraphicsPdfPageOptions.Append);
 
-        double scaleX = page.Width.Point / imageWidth;
-        double scaleY = page.Height.Point / imageHeight;
-        double pageHeight = page.Height.Point;
+        // Map rendered-image pixel coords → PDF point coords
+        double scaleX = pdfPage.Width.Point / imageWidth;
+        double scaleY = pdfPage.Height.Point / imageHeight;
 
-        var sb = new StringBuilder();
-        sb.AppendLine("q");        // Save graphics state
-        sb.AppendLine("BT");       // Begin text object
-        sb.AppendLine("3 Tr");     // Rendering mode 3 = invisible (neither fill nor stroke)
+        var brush = XBrushes.Black;
 
         foreach (var line in ocrResult.Lines)
         {
@@ -107,100 +101,18 @@ public class OcrProcessor
             {
                 var rect = word.BoundingRect;
                 double x = rect.X * scaleX;
-                // PDF origin is bottom-left; OCR origin is top-left
-                double y = pageHeight - (rect.Y + rect.Height) * scaleY;
-                double fontSize = Math.Max(rect.Height * scaleY * 0.85, 1.0);
+                double y = rect.Y * scaleY;
+                double w = rect.Width * scaleX;
+                double h = rect.Height * scaleY;
 
-                // Set font + size, then absolute position via text matrix, then draw word
-                sb.AppendFormat(CultureInfo.InvariantCulture,
-                    "/{0} {1:F2} Tf\n", OcrFontKey, fontSize);
-                sb.AppendFormat(CultureInfo.InvariantCulture,
-                    "1 0 0 1 {0:F2} {1:F2} Tm\n", x, y);
-                sb.AppendFormat("({0}) Tj\n", EscapePdfString(word.Text));
+                // Font size derived from bounding box height
+                double fontSize = Math.Max(h * 0.85, 1.0);
+                var font = new XFont(GlyphlessFontResolver.FontFamily, fontSize);
+
+                gfx.DrawString(word.Text, font, brush,
+                    new XRect(x, y, w, h), XStringFormats.CenterLeft);
             }
         }
-
-        sb.AppendLine("ET");       // End text object
-        sb.AppendLine("Q");        // Restore graphics state
-
-        AppendContentStream(doc, page, sb.ToString());
-    }
-
-    /// <summary>
-    /// Registers the Helvetica Type1 font (one of 14 standard PDF fonts — no embedding needed)
-    /// in the page's resource dictionary under the key F_OCR.
-    /// </summary>
-    internal static void RegisterFont(PdfDocument doc, PdfPage page)
-    {
-        var fonts = page.Resources.Elements.GetDictionary("/Font");
-        if (fonts == null)
-        {
-            fonts = new PdfDictionary(doc);
-            page.Resources.Elements.SetObject("/Font", fonts);
-        }
-
-        string key = "/" + OcrFontKey;
-        if (fonts.Elements.GetObject(key) != null)
-            return;
-
-        var fontDict = new PdfDictionary(doc);
-        fontDict.Elements.SetName("/Type", "/Font");
-        fontDict.Elements.SetName("/Subtype", "/Type1");
-        fontDict.Elements.SetName("/BaseFont", "/Helvetica");
-        fontDict.Elements.SetName("/Encoding", "/WinAnsiEncoding");
-
-        doc.Internals.AddObject(fontDict);
-        fonts.Elements.SetReference(key, fontDict);
-    }
-
-    /// <summary>
-    /// Merges all existing content streams with the new OCR text into a single stream,
-    /// then replaces the page's /Contents with one indirect reference.
-    /// Direct array manipulation via page.Contents.Elements.Add() produces broken PDFs
-    /// in most viewers — this approach avoids that entirely.
-    /// </summary>
-    internal static void AppendContentStream(PdfDocument doc, PdfPage page, string content)
-    {
-        if (string.IsNullOrWhiteSpace(content)) return;
-
-        var combined = new MemoryStream();
-
-        // Read and decompress all existing content streams
-        var existingContents = page.Contents;
-        for (int i = 0; i < existingContents.Elements.Count; i++)
-        {
-            var streamDict = existingContents.Elements.GetDictionary(i);
-            if (streamDict?.Stream == null) continue;
-
-            streamDict.Stream.TryUnfilter();
-            var existingBytes = streamDict.Stream.Value;
-            if (existingBytes is { Length: > 0 })
-            {
-                combined.Write(existingBytes, 0, existingBytes.Length);
-                combined.WriteByte((byte)'\n');
-            }
-        }
-
-        // Append new invisible-text operators after the original page content
-        var ocrBytes = Encoding.ASCII.GetBytes(content);
-        combined.Write(ocrBytes, 0, ocrBytes.Length);
-
-        // Replace /Contents with a single combined stream reference
-        var combinedDict = new PdfDictionary(doc);
-        combinedDict.CreateStream(combined.ToArray());
-        doc.Internals.AddObject(combinedDict);
-        page.Elements["/Contents"] = combinedDict.Reference;
-    }
-
-    /// <summary>
-    /// Escapes special characters for a PDF literal string: backslash, parentheses.
-    /// </summary>
-    private static string EscapePdfString(string text)
-    {
-        return text
-            .Replace("\\", "\\\\")
-            .Replace("(", "\\(")
-            .Replace(")", "\\)");
     }
 
     private record PageOcrResult(OcrResult? OcrResult, int ImageWidth, int ImageHeight);
