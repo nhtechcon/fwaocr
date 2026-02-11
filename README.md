@@ -63,4 +63,4 @@ Free Windows Auto OCR is licensed under the MIT License.
 - [Windows.Media.Ocr](https://learn.microsoft.com/en-us/uwp/api/windows.media.ocr)
 - [Docnet.Core](https://github.com/GowenGit/docnet)
 - [PdfSharpCore](https://github.com/ststeiger/PdfSharpCore)
-- [pdf.ttf Font from Tesseract](https://github.com/tesseract-ocr/tessconfigs/blob/3decf1c8252ba6dbeef0bf908f4b0aab7f18d113/pdf.ttf)
+- [Occulta glyphless font from OCRmyPDF](https://github.com/ocrmypdf/OCRmyPDF)

@@ -4,16 +4,18 @@ using PdfSharpCore.Fonts;
 namespace FreeWindowsAutoOCR.Fonts;
 
 /// <summary>
-/// Custom font resolver that provides Tesseract's glyphless TrueType font (pdf.ttf)
-/// for invisible OCR text layers. The font has zero-area glyph outlines so nothing
-/// is ever visible on screen, regardless of rendering mode.
+/// Custom font resolver that provides OCRmyPDF's Occulta glyphless TrueType font
+/// for invisible OCR text layers. The font has zero-area glyph outlines covering the
+/// entire Basic Multilingual Plane (65K codepoints), so nothing is ever visible
+/// on screen regardless of rendering mode.
 /// </summary>
 public class GlyphlessFontResolver : IFontResolver
 {
     /// <summary>
     /// Font family name used when constructing XFont instances for the OCR layer.
+    /// Must match the name table inside the embedded TTF.
     /// </summary>
-    public const string FontFamily = "GlyphlessFont";
+    public const string FontFamily = "Occulta";
 
     private static readonly byte[] FontData = LoadEmbeddedFont();
 
