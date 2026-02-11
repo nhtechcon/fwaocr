@@ -130,7 +130,7 @@ public class OcrProcessor
     /// Registers the Helvetica Type1 font (one of 14 standard PDF fonts — no embedding needed)
     /// in the page's resource dictionary under the key F_OCR.
     /// </summary>
-    private static void RegisterFont(PdfDocument doc, PdfPage page)
+    internal static void RegisterFont(PdfDocument doc, PdfPage page)
     {
         var fonts = page.Resources.Elements.GetDictionary("/Font");
         if (fonts == null)
@@ -154,15 +154,42 @@ public class OcrProcessor
     }
 
     /// <summary>
-    /// Appends a raw content stream to the page's Contents array.
+    /// Merges all existing content streams with the new OCR text into a single stream,
+    /// then replaces the page's /Contents with one indirect reference.
+    /// Direct array manipulation via page.Contents.Elements.Add() produces broken PDFs
+    /// in most viewers — this approach avoids that entirely.
     /// </summary>
-    private static void AppendContentStream(PdfDocument doc, PdfPage page, string content)
+    internal static void AppendContentStream(PdfDocument doc, PdfPage page, string content)
     {
-        var bytes = Encoding.ASCII.GetBytes(content);
-        var streamDict = new PdfDictionary(doc);
-        streamDict.CreateStream(bytes);
-        doc.Internals.AddObject(streamDict);
-        page.Contents.Elements.Add(streamDict.Reference);
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        var combined = new MemoryStream();
+
+        // Read and decompress all existing content streams
+        var existingContents = page.Contents;
+        for (int i = 0; i < existingContents.Elements.Count; i++)
+        {
+            var streamDict = existingContents.Elements.GetDictionary(i);
+            if (streamDict?.Stream == null) continue;
+
+            streamDict.Stream.TryUnfilter();
+            var existingBytes = streamDict.Stream.Value;
+            if (existingBytes is { Length: > 0 })
+            {
+                combined.Write(existingBytes, 0, existingBytes.Length);
+                combined.WriteByte((byte)'\n');
+            }
+        }
+
+        // Append new invisible-text operators after the original page content
+        var ocrBytes = Encoding.ASCII.GetBytes(content);
+        combined.Write(ocrBytes, 0, ocrBytes.Length);
+
+        // Replace /Contents with a single combined stream reference
+        var combinedDict = new PdfDictionary(doc);
+        combinedDict.CreateStream(combined.ToArray());
+        doc.Internals.AddObject(combinedDict);
+        page.Elements["/Contents"] = combinedDict.Reference;
     }
 
     /// <summary>
