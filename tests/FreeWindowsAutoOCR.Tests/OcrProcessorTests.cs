@@ -3,6 +3,7 @@ using System.Text;
 using FreeWindowsAutoOCR.Services;
 using PdfSharpCore.Pdf;
 using UglyToad.PdfPig;
+using Xunit;
 
 namespace FreeWindowsAutoOCR.Tests;
 
